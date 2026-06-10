@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase, type AppUser } from "../lib/supabase";
-import { SocialMetrics } from "../types";
+import { SocialMetrics, ApiCredentials } from "../types";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, Percent, DollarSign, MousePointerClick, RefreshCw, Layers } from "lucide-react";
+import { TrendingUp, Percent, DollarSign, MousePointerClick, RefreshCw, Layers, Zap, AlertCircle } from "lucide-react";
 
 const SEEDS: Omit<SocialMetrics, "uid">[] = [
   { id: "m_1",  platform: "meta",   campaign_name: "Ecomm Lookalikes Q2",      status: "active", spend: 1450.5, clicks: 12020, impressions: 480000, conversions: 840,  revenue: 4350, ctr: 2.5,  roas: 3.0,  timestamp: new Date(Date.now()-3.6e7).toISOString() },
@@ -11,31 +11,79 @@ const SEEDS: Omit<SocialMetrics, "uid">[] = [
   { id: "m_2",  platform: "meta",   campaign_name: "Retargeting – Dynamic Ads", status: "active", spend: 780,   clicks: 6150,  impressions: 110000, conversions: 490,  revenue: 2950, ctr: 5.59, roas: 3.78, timestamp: new Date(Date.now()-1.44e8).toISOString() },
 ];
 
-const PC = { meta: "#7c6af7", google: "#00e5c8", tiktok: "#ff6b9d" };
+const PC = { meta: "#7c6af7", google: "#00e5c8", tiktok: "#ff6b9d" } as const;
 const f$ = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function PerformanceDashboard({ user }: { user: AppUser }) {
-  const [metrics, setMetrics]   = useState<SocialMetrics[]>([]);
-  const [filter, setFilter]     = useState<"all"|"meta"|"google"|"tiktok">("all");
-  const [loading, setLoading]   = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [metrics, setMetrics]     = useState<SocialMetrics[]>([]);
+  const [filter, setFilter]       = useState<"all"|"meta"|"google"|"tiktok">("all");
+  const [loading, setLoading]     = useState(true);
+  const [syncing, setSyncing]     = useState(false);
+  const [syncErrors, setSyncErrors] = useState<string[]>([]);
+  const [isLiveData, setIsLiveData] = useState(false);
 
-  const fetch = async (forceSync = false) => {
-    setRefreshing(true);
-    try {
-      const { data } = await supabase.from("analytics").select("*").eq("uid", user.uid);
-      if (!data?.length || forceSync) {
-        const rows = SEEDS.map(({ id, ...rest }) => ({ ...rest, id: `${user.uid}_${id}`, uid: user.uid }));
-        await supabase.from("analytics").upsert(rows);
-        setMetrics(rows);
-      } else {
-        setMetrics(data as SocialMetrics[]);
-      }
-    } catch { setMetrics(SEEDS.map(({ id, ...rest }) => ({ ...rest, id: `${user.uid}_${id}`, uid: user.uid }))); }
-    finally { setLoading(false); setRefreshing(false); }
+  const loadFromDB = async () => {
+    const { data } = await supabase.from("analytics").select("*").eq("uid", user.uid);
+    if (!data?.length) {
+      const rows = SEEDS.map(({ id, ...rest }) => ({ ...rest, id: `${user.uid}_${id}`, uid: user.uid }));
+      await supabase.from("analytics").upsert(rows);
+      setMetrics(rows);
+    } else {
+      setMetrics(data as SocialMetrics[]);
+    }
+    setLoading(false);
   };
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { loadFromDB(); }, []);
+
+  // Sync live data from ad platforms
+  const syncLiveData = async () => {
+    setSyncing(true); setSyncErrors([]);
+    try {
+      // Get saved credentials
+      const { data: creds } = await supabase
+        .from("credentials").select("*").eq("id", user.uid).single();
+
+      if (!creds || (!creds.meta_api_key && !creds.tiktok_api_key && !creds.google_api_key)) {
+        setSyncErrors(["No API credentials found. Add your ad platform credentials in Settings → Platform credentials."]);
+        setSyncing(false);
+        return;
+      }
+
+      const res = await fetch("/api/fetch-metrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, credentials: creds }),
+      });
+
+      const result = await res.json();
+
+      if (result.errors?.length) setSyncErrors(result.errors);
+
+      if (result.metrics?.length) {
+        // Save live metrics to Supabase, keyed by platform + campaign
+        const rows = result.metrics.map((m: any, i: number) => ({
+          ...m,
+          id: `${user.uid}_live_${m.platform}_${i}`,
+          uid: user.uid,
+        }));
+        // Delete old entries for platforms we just fetched
+        const platforms = [...new Set(rows.map((r: any) => r.platform))];
+        for (const p of platforms) {
+          await supabase.from("analytics").delete().eq("uid", user.uid).eq("platform", p);
+        }
+        await supabase.from("analytics").upsert(rows);
+        setMetrics(rows);
+        setIsLiveData(true);
+      } else if (!result.errors?.length) {
+        setSyncErrors(["No campaign data returned. Your ad accounts may have no activity in the last 30 days."]);
+      }
+    } catch (e: any) {
+      setSyncErrors([e.message]);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filtered = metrics.filter((m) => filter === "all" || m.platform === filter);
   const spend  = filtered.reduce((s, m) => s + +m.spend, 0);
@@ -55,16 +103,26 @@ export function PerformanceDashboard({ user }: { user: AppUser }) {
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-24 gap-4">
       <div className="w-10 h-10 rounded-full border-2 border-velox-primary border-t-transparent animate-spin" />
-      <span className="text-xs text-velox-muted font-mono">Syncing campaign data…</span>
+      <span className="text-xs text-velox-muted font-mono">Loading campaign data…</span>
     </div>
   );
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="font-display text-xl font-semibold text-white tracking-tight mb-1">Campaign metrics</h2>
-          <p className="text-xs text-velox-muted">Aggregated from your connected Meta, Google, and TikTok ad accounts</p>
+          <h2 className="font-display text-xl font-semibold text-white tracking-tight mb-1 flex items-center gap-2">
+            Campaign metrics
+            {isLiveData && (
+              <span className="text-[10px] font-semibold text-velox-accent bg-velox-accent/10 border border-velox-accent/20 px-2 py-0.5 rounded-full">
+                Live data
+              </span>
+            )}
+          </h2>
+          <p className="text-xs text-velox-muted">
+            {isLiveData ? "Showing real data from your connected ad accounts" : "Showing demo data — connect your ad accounts to see live metrics"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex p-1 gap-1 bg-velox-surface border border-velox-border rounded-xl">
@@ -75,13 +133,26 @@ export function PerformanceDashboard({ user }: { user: AppUser }) {
               </button>
             ))}
           </div>
-          <button onClick={() => fetch(true)} disabled={refreshing}
-            className="p-2 bg-velox-surface border border-velox-border hover:border-velox-primary/30 text-velox-muted hover:text-velox-text rounded-xl transition-all disabled:opacity-40">
-            <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+          <button onClick={syncLiveData} disabled={syncing}
+            className="flex items-center gap-1.5 bg-velox-primary hover:bg-velox-primary-dark disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all">
+            {syncing ? <RefreshCw size={13} className="animate-spin" /> : <Zap size={13} />}
+            {syncing ? "Syncing…" : "Sync live data"}
           </button>
         </div>
       </div>
 
+      {/* Sync errors */}
+      {syncErrors.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-1">
+          {syncErrors.map((e, i) => (
+            <p key={i} className="text-xs text-amber-400 flex items-start gap-2">
+              <AlertCircle size={13} className="shrink-0 mt-0.5" />{e}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Ad Spend",    value: `$${f$(spend)}`,          Icon: DollarSign,        color: "#7c6af7" },
@@ -101,6 +172,7 @@ export function PerformanceDashboard({ user }: { user: AppUser }) {
         ))}
       </div>
 
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 bg-velox-card border border-velox-border rounded-2xl p-5">
           <h4 className="text-sm font-medium text-velox-text mb-4 flex items-center gap-2">
@@ -124,12 +196,15 @@ export function PerformanceDashboard({ user }: { user: AppUser }) {
             </ResponsiveContainer>
           </div>
         </div>
+
         <div className="bg-velox-card border border-velox-border rounded-2xl p-5">
           <h4 className="text-sm font-medium text-velox-text mb-4 flex items-center gap-2">
             <Layers size={15} className="text-velox-primary" /> Campaigns
           </h4>
           <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-            {filtered.map((m) => (
+            {filtered.length === 0 ? (
+              <p className="text-xs text-velox-muted text-center py-6">No campaigns for this filter</p>
+            ) : filtered.map((m) => (
               <div key={m.id} className="flex items-center justify-between p-3 bg-velox-surface border border-velox-border rounded-xl hover:border-velox-primary/20 transition-all">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
