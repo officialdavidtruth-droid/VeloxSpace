@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --velox-bg: #05070f;
+  --velox-surface: #0c0f1e;
+  --velox-card: #10142a;
+  --velox-border: #1e2240;
+  --velox-primary: #7c6af7;
+  --velox-accent: #00e5c8;
+  --velox-pink: #ff6b9d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--velox-bg);
+  color: #c8ceeb;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Velocity line — the Velox Space signature element */
+.velocity-line {
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    #7c6af7 20%,
+    #00e5c8 50%,
+    #7c6af7 80%,
+    transparent 100%
+  );
+  animation: velocityPulse 4s ease-in-out infinite;
+}
+
+@keyframes velocityPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Star-field background for login page */
+.star-bg {
+  background-color: var(--velox-bg);
+  background-image:
+    radial-gradient(circle, rgba(124, 106, 247, 0.07) 1px, transparent 1px),
+    radial-gradient(circle, rgba(0, 229, 200, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px, 80px 80px;
+  background-position: 0 0, 16px 16px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--velox-border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #2e3460; }
+
+/* Recharts tooltip */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #0c0f1e !important;
+  border: 1px solid #1e2240 !important;
+  border-radius: 8px !important;
+}
