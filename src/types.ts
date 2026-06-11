@@ -1,64 +1,109 @@
-export type PlanTier = "starter" | "growth" | "pro";
+export type PlatformId = "instagram" | "facebook" | "linkedin" | "twitter" | "tiktok" | "youtube";
 
-export interface UserSubscription {
+export interface PlatformConnection {
   id: string;
   uid: string;
-  plan: PlanTier;
-  billing_cycle: "monthly" | "yearly";
-  updated_at: string;
-  posts_created_this_month: number;
+  platform: PlatformId;
+  account_id: string;
+  account_name: string;
+  access_token: string;
+  connected: boolean;
+  last_synced_at: string | null;
 }
 
-export interface SocialMetrics {
+export interface SocialMetric {
   id: string;
   uid: string;
-  platform: "meta" | "google" | "tiktok";
-  campaign_name: string;
-  status: "active" | "paused" | "completed";
-  spend: number;
+  platform: PlatformId;
+  followers: number;
+  following: number;
+  posts: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  reach: number;
+  impressions: number;
+  engagement_rate: number;
+  profile_views: number;
+  synced_at: string;
+}
+
+export interface PlatformPost {
+  id: string;
+  uid: string;
+  platform: PlatformId;
+  post_id: string;
+  caption: string;
+  media_url: string;
+  thumbnail_url: string;
+  post_url: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  reach: number;
+  impressions: number;
+  views: number;
+  engagement_rate: number;
+  posted_at: string;
+  synced_at: string;
+}
+
+export interface AIInsight {
+  id: string;
+  uid: string;
+  platform: PlatformId | "all";
+  overall_score: number;
+  top_platform: string;
+  key_insight: string;
+  recommendations: {
+    platform: string;
+    priority: "high" | "medium" | "low";
+    title: string;
+    description: string;
+    action: string;
+  }[];
+  best_times: Record<string, string>;
+  generated_at: string;
+}
+
+export interface AdMetric {
+  id: string;
+  uid: string;
+  platform: PlatformId | "all";
+  period_label: string;
+  ad_spend: number;
+  revenue: number;
   clicks: number;
   impressions: number;
   conversions: number;
-  revenue: number;
-  ctr: number;
-  roas: number;
-  timestamp: string;
+  leads: number;
+  currency: string;
+  recorded_at: string;
 }
 
-export interface ScheduledPost {
-  id: string;
+export interface AppUser {
   uid: string;
-  content: string;
-  platforms: ("meta" | "tiktok" | "x")[];
-  scheduled_time: string;
-  status: "draft" | "scheduled" | "published" | "failed";
-  caption_length: number;
-  hashtags: string[];
-  created_at: string;
+  email: string;
+  name: string;
 }
 
-export interface ApiCredentials {
-  id: string;
-  uid: string;
-  meta_ads_id: string;
-  meta_api_key: string;
-  google_ads_id: string;
-  google_api_key: string;
-  tiktok_ads_id: string;
-  tiktok_api_key: string;
-  updated_at: string;
-}
-
-export interface AiRecommendation {
-  id: string;
-  uid: string;
-  title: string;
-  platform: "meta" | "google" | "tiktok" | "all";
-  impact: "high" | "medium" | "low";
+export interface MetricDefinition {
+  abbr: string;
+  full: string;
+  formula: string;
   description: string;
-  recommended_action: string;
-  projected_roas_lift: number;
-  implemented: boolean;
-  type: "budget" | "audience" | "creative";
-  category: string;
+  benchmark: string;
+  type: "ratio" | "percentage" | "currency" | "number";
+  higherIsBetter: boolean;
+  color: string;
+}
+
+export interface PlatformConfig {
+  id: PlatformId;
+  name: string;
+  color: string;
+  bgColor: string;
+  darkBgColor: string;
+  handle: string;
+  description: string;
 }

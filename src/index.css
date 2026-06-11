@@ -2,71 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Light theme (default) ─────────────────────────────────────────────── */
 :root {
-  --velox-bg: #05070f;
-  --velox-surface: #0c0f1e;
-  --velox-card: #10142a;
-  --velox-border: #1e2240;
-  --velox-primary: #7c6af7;
-  --velox-accent: #00e5c8;
-  --velox-pink: #ff6b9d;
+  --bg:        #f8fafc;
+  --surface:   #ffffff;
+  --card:      #ffffff;
+  --border:    #e2e8f0;
+  --text:      #0f172a;
+  --muted:     #64748b;
+  --primary:   #4f46e5;
+  --primary-l: #eef2ff;
 }
 
-* {
-  box-sizing: border-box;
+/* ── Dark theme ────────────────────────────────────────────────────────── */
+.dark {
+  --bg:        #05070f;
+  --surface:   #0c0f1e;
+  --card:      #10142a;
+  --border:    #1e2240;
+  --text:      #c8ceeb;
+  --muted:     #4e5880;
+  --primary:   #7c6af7;
+  --primary-l: #1e1a3a;
 }
 
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
+html, body, #root { height: 100%; margin: 0; padding: 0; }
 
 body {
-  background-color: var(--velox-bg);
-  color: #c8ceeb;
+  background-color: var(--bg);
+  color: var(--text);
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Velocity line — the Velox Space signature element */
-.velocity-line {
-  height: 2px;
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    #7c6af7 20%,
-    #00e5c8 50%,
-    #7c6af7 80%,
-    transparent 100%
-  );
-  animation: velocityPulse 4s ease-in-out infinite;
-}
+/* ── Platform gradient decorators ─────────────────────────────────────── */
+.ig-gradient { background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+.yt-gradient { background: linear-gradient(135deg, #ff0000, #cc0000); }
 
-@keyframes velocityPulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-/* Star-field background for login page */
-.star-bg {
-  background-color: var(--velox-bg);
-  background-image:
-    radial-gradient(circle, rgba(124, 106, 247, 0.07) 1px, transparent 1px),
-    radial-gradient(circle, rgba(0, 229, 200, 0.04) 1px, transparent 1px);
-  background-size: 32px 32px, 80px 80px;
-  background-position: 0 0, 16px 16px;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar { width: 4px; }
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--velox-border); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #2e3460; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-/* Recharts tooltip */
-.recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: #0c0f1e !important;
-  border: 1px solid #1e2240 !important;
+/* ── Recharts tooltip ─────────────────────────────────────────────────── */
+.recharts-default-tooltip {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 8px !important;
 }
