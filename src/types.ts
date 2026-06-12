@@ -1,4 +1,4 @@
-export type PlatformId = "instagram" | "facebook" | "linkedin" | "twitter" | "tiktok" | "youtube";
+export type PlatformId = "instagram" | "facebook" | "linkedin" | "twitter" | "tiktok" | "youtube" | "google_ads";
 
 export interface PlatformConnection {
   id: string;
@@ -107,3 +107,6 @@ export interface PlatformConfig {
   handle: string;
   description: string;
 }
+
+// extend PlatformId to include google_ads
+declare module "./types" {}
