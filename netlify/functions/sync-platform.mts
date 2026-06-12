@@ -17,14 +17,14 @@ interface SyncResult {
 async function syncInstagram(accountId: string, token: string): Promise<SyncResult> {
   // 1. Profile metrics
   const profileRes = await fetch(
-    `https://graph.facebook.com/v18.0/me?fields=id,name,biography,followers_count,media_count,profile_picture_url,website&access_token=${token}`
+    `https://graph.facebook.com/v18.0/${accountId}?fields=id,name,biography,followers_count,media_count,profile_picture_url,website&access_token=${token}`
   );
   const profile = await profileRes.json();
   if (profile.error) throw new Error(`Instagram: ${profile.error.message}`);
 
   // 2. Recent media (up to 20 posts)
   const mediaRes = await fetch(
-    `https://graph.facebook.com/v18.0/me/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink,like_count,comments_count&limit=20&access_token=${token}`
+    `https://graph.facebook.com/v18.0/${accountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink,like_count,comments_count&limit=20&access_token=${token}`
   );
   const mediaData = await mediaRes.json();
   if (mediaData.error) throw new Error(`Instagram media: ${mediaData.error.message}`);

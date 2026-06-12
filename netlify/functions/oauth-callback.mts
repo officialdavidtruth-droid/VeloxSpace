@@ -8,10 +8,19 @@ const supabase = createClient(
 const SITE_URL = process.env.SITE_URL || process.env.VITE_SITE_URL || "https://velox-space.netlify.app";
 const REDIRECT_URI = `${SITE_URL}/api/oauth-callback`;
 
-async function exchangeMeta(code: string) {
+async function upsertConn(uid: string, platform: string, accountId: string, accountName: string, token: string, connected: boolean) {
+  await supabase.from("platform_connections").upsert({
+    id: `${uid}_${platform}`, uid, platform,
+    account_id: accountId, account_name: accountName,
+    access_token: token, connected, last_synced_at: new Date().toISOString(),
+  });
+}
+
+async function exchangeMeta(code: string, uid: string) {
+  const appId = process.env.META_APP_ID || process.env.VITE_META_APP_ID;
   const shortRes = await fetch(
     `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=authorization_code` +
-    `&client_id=${process.env.META_APP_ID || process.env.VITE_META_APP_ID}&client_secret=${process.env.META_APP_SECRET}` +
+    `&client_id=${appId}&client_secret=${process.env.META_APP_SECRET}` +
     `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code=${code}`
   );
   const short = await shortRes.json();
@@ -19,19 +28,37 @@ async function exchangeMeta(code: string) {
 
   const longRes = await fetch(
     `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token` +
-    `&client_id=${process.env.META_APP_ID || process.env.VITE_META_APP_ID}&client_secret=${process.env.META_APP_SECRET}` +
+    `&client_id=${appId}&client_secret=${process.env.META_APP_SECRET}` +
     `&fb_exchange_token=${short.access_token}`
   );
   const long = await longRes.json();
-  const token = long.access_token || short.access_token;
+  const userToken = long.access_token || short.access_token;
 
-  const meRes = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name&access_token=${token}`);
-  const me = await meRes.json();
+  const pagesRes = await fetch(
+    `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name}&access_token=${userToken}`
+  );
+  const pagesData = await pagesRes.json();
+  if (pagesData.error) throw new Error(pagesData.error.message);
+  const page = pagesData.data?.[0];
 
-  return { token, account_id: me.id ?? "", account_name: me.name ?? "Meta Account" };
+  if (!page) {
+    await upsertConn(uid, "facebook", "", "No Facebook Page found", userToken, false);
+    await upsertConn(uid, "instagram", "", "No Instagram Business Account linked", "", false);
+    return;
+  }
+
+  const pageToken = page.access_token || userToken;
+  await upsertConn(uid, "facebook", page.id, page.name ?? "Facebook Page", pageToken, true);
+
+  const ig = page.instagram_business_account;
+  if (ig) {
+    await upsertConn(uid, "instagram", ig.id, ig.username ?? ig.name ?? "Instagram Account", pageToken, true);
+  } else {
+    await upsertConn(uid, "instagram", "", "No Instagram Business Account linked to this Page", "", false);
+  }
 }
 
-async function exchangeGoogle(code: string) {
+async function exchangeGoogle(code: string, uid: string) {
   const body = new URLSearchParams({
     code, grant_type: "authorization_code",
     client_id: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "",
@@ -59,10 +86,11 @@ async function exchangeGoogle(code: string) {
     expiry: Date.now() + (data.expires_in ?? 3600) * 1000,
   });
 
-  return { token: tokenPayload, account_id: ch?.id ?? "", account_name: ch?.snippet?.title ?? "Google Account" };
+  await upsertConn(uid, "youtube", ch?.id ?? "", ch?.snippet?.title ?? "YouTube Channel", tokenPayload, true);
+  await upsertConn(uid, "google_ads", "google_ads", "Google Ads Account", tokenPayload, true);
 }
 
-async function exchangeTikTok(code: string) {
+async function exchangeTikTok(code: string, uid: string) {
   const res = await fetch("https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -78,10 +106,10 @@ async function exchangeTikTok(code: string) {
 
   const token = data.data?.access_token ?? "";
   const advertisers = data.data?.advertiser_ids ?? [];
-  return { token, account_id: advertisers[0] ?? "", account_name: data.data?.display_name ?? "TikTok Account" };
+  await upsertConn(uid, "tiktok", advertisers[0] ?? "", data.data?.display_name ?? "TikTok Account", token, true);
 }
 
-async function exchangeLinkedIn(code: string) {
+async function exchangeLinkedIn(code: string, uid: string) {
   const body = new URLSearchParams({
     grant_type: "authorization_code", code,
     client_id: process.env.LINKEDIN_CLIENT_ID || process.env.VITE_LINKEDIN_CLIENT_ID || "",
@@ -101,10 +129,10 @@ async function exchangeLinkedIn(code: string) {
   });
   const profile = await profileRes.json();
 
-  return { token: data.access_token, account_id: profile.sub ?? "", account_name: profile.name ?? "LinkedIn Account" };
+  await upsertConn(uid, "linkedin", profile.sub ?? "", profile.name ?? "LinkedIn Account", data.access_token, true);
 }
 
-async function exchangeTwitter(code: string, verifier: string) {
+async function exchangeTwitter(code: string, verifier: string, uid: string) {
   const creds = Buffer.from(`${process.env.TWITTER_CLIENT_ID || process.env.VITE_TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString("base64");
   const body = new URLSearchParams({
     code, grant_type: "authorization_code",
@@ -124,7 +152,7 @@ async function exchangeTwitter(code: string, verifier: string) {
   });
   const me = await meRes.json();
 
-  return { token: data.access_token, account_id: me.data?.username ?? "", account_name: me.data?.name ?? "X Account" };
+  await upsertConn(uid, "twitter", me.data?.username ?? "", me.data?.name ?? "X Account", data.access_token, true);
 }
 
 export default async (req: Request) => {
@@ -133,12 +161,8 @@ export default async (req: Request) => {
   const state = url.searchParams.get("state") ?? "";
   const error = url.searchParams.get("error");
 
-  if (error) {
-    return Response.redirect(`${SITE_URL}/?oauth_error=${encodeURIComponent(error)}`, 302);
-  }
-  if (!code || !state) {
-    return Response.redirect(`${SITE_URL}/?oauth_error=missing_params`, 302);
-  }
+  if (error) return Response.redirect(`${SITE_URL}/?oauth_error=${encodeURIComponent(error)}`, 302);
+  if (!code || !state) return Response.redirect(`${SITE_URL}/?oauth_error=missing_params`, 302);
 
   const parts    = state.split("__");
   const platform = parts[0];
@@ -150,40 +174,14 @@ export default async (req: Request) => {
   }
 
   try {
-    let result: { token: string; account_id: string; account_name: string };
-
-    if (platform === "meta")     result = await exchangeMeta(code);
-    else if (platform === "google")  result = await exchangeGoogle(code);
-    else if (platform === "tiktok")  result = await exchangeTikTok(code);
-    else if (platform === "linkedin") result = await exchangeLinkedIn(code);
+    if (platform === "meta") await exchangeMeta(code, uid);
+    else if (platform === "google") await exchangeGoogle(code, uid);
+    else if (platform === "tiktok") await exchangeTikTok(code, uid);
+    else if (platform === "linkedin") await exchangeLinkedIn(code, uid);
     else if (platform === "twitter") {
       const verifier = pkceB64 ? Buffer.from(pkceB64, "base64").toString() : "";
-      result = await exchangeTwitter(code, verifier);
-    } else {
-      throw new Error(`Unknown platform: ${platform}`);
-    }
-
-    const platformMap: Record<string, string[]> = {
-      meta: ["instagram", "facebook"],
-      google: ["youtube", "google_ads"],
-      tiktok: ["tiktok"],
-      linkedin: ["linkedin"],
-      twitter: ["twitter"],
-    };
-    const dbPlatforms = platformMap[platform] ?? [platform];
-
-    for (const dbPlatform of dbPlatforms) {
-      await supabase.from("platform_connections").upsert({
-        id: `${uid}_${dbPlatform}`,
-        uid,
-        platform: dbPlatform,
-        account_id: result.account_id,
-        account_name: result.account_name,
-        access_token: result.token,
-        connected: true,
-        last_synced_at: new Date().toISOString(),
-      });
-    }
+      await exchangeTwitter(code, verifier, uid);
+    } else throw new Error(`Unknown platform: ${platform}`);
 
     return Response.redirect(`${SITE_URL}/?connected=${platform}`, 302);
   } catch (err: any) {
