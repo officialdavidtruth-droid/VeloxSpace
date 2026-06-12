@@ -8,14 +8,15 @@ const supabase = createClient(
 const SITE_URL = process.env.SITE_URL || process.env.VITE_SITE_URL || "https://velox-space.netlify.app";
 const REDIRECT_URI = `${SITE_URL}/api/oauth-callback`;
 
-async function upsertConn(uid: string, platform: string, accountId: string, accountName: string, token: string, connected: boolean) {
+async function upsertConn(uid: string, platform: string, accountId: string, accountName: string, token: string, connected: boolean, pictureUrl: string = "") {
   await supabase.from("platform_connections").upsert({
     id: `${uid}_${platform}`, uid, platform,
-    account_id: accountId, account_name: accountName,
+    account_id: accountId, account_name: accountName, profile_picture_url: pictureUrl,
     access_token: token, connected, last_synced_at: new Date().toISOString(),
   });
 }
 
+// Meta — exchanges code, finds the user's Facebook Page + linked Instagram Business Account
 async function exchangeMeta(code: string, uid: string) {
   const appId = process.env.META_APP_ID || process.env.VITE_META_APP_ID;
   const shortRes = await fetch(
@@ -34,25 +35,28 @@ async function exchangeMeta(code: string, uid: string) {
   const long = await longRes.json();
   const userToken = long.access_token || short.access_token;
 
+  // Find the user's Pages + any linked Instagram Business Account
   const pagesRes = await fetch(
-    `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name}&access_token=${userToken}`
+    `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,picture.type(large),instagram_business_account{id,username,name,profile_picture_url}&access_token=${userToken}`
   );
   const pagesData = await pagesRes.json();
   if (pagesData.error) throw new Error(pagesData.error.message);
   const page = pagesData.data?.[0];
 
   if (!page) {
+    // No Page found — still save a Facebook connection using the user token,
+    // but mark Instagram as unavailable.
     await upsertConn(uid, "facebook", "", "No Facebook Page found", userToken, false);
     await upsertConn(uid, "instagram", "", "No Instagram Business Account linked", "", false);
     return;
   }
 
   const pageToken = page.access_token || userToken;
-  await upsertConn(uid, "facebook", page.id, page.name ?? "Facebook Page", pageToken, true);
+  await upsertConn(uid, "facebook", page.id, page.name ?? "Facebook Page", pageToken, true, page.picture?.data?.url ?? "");
 
   const ig = page.instagram_business_account;
   if (ig) {
-    await upsertConn(uid, "instagram", ig.id, ig.username ?? ig.name ?? "Instagram Account", pageToken, true);
+    await upsertConn(uid, "instagram", ig.id, ig.username ?? ig.name ?? "Instagram Account", pageToken, true, ig.profile_picture_url ?? "");
   } else {
     await upsertConn(uid, "instagram", "", "No Instagram Business Account linked to this Page", "", false);
   }
@@ -86,7 +90,8 @@ async function exchangeGoogle(code: string, uid: string) {
     expiry: Date.now() + (data.expires_in ?? 3600) * 1000,
   });
 
-  await upsertConn(uid, "youtube", ch?.id ?? "", ch?.snippet?.title ?? "YouTube Channel", tokenPayload, true);
+  const channelPic = ch?.snippet?.thumbnails?.default?.url ?? "";
+  await upsertConn(uid, "youtube", ch?.id ?? "", ch?.snippet?.title ?? "YouTube Channel", tokenPayload, true, channelPic);
   await upsertConn(uid, "google_ads", "google_ads", "Google Ads Account", tokenPayload, true);
 }
 
@@ -106,7 +111,7 @@ async function exchangeTikTok(code: string, uid: string) {
 
   const token = data.data?.access_token ?? "";
   const advertisers = data.data?.advertiser_ids ?? [];
-  await upsertConn(uid, "tiktok", advertisers[0] ?? "", data.data?.display_name ?? "TikTok Account", token, true);
+  await upsertConn(uid, "tiktok", advertisers[0] ?? "", data.data?.display_name ?? "TikTok Account", token, true, data.data?.avatar_url ?? "");
 }
 
 async function exchangeLinkedIn(code: string, uid: string) {
@@ -129,7 +134,7 @@ async function exchangeLinkedIn(code: string, uid: string) {
   });
   const profile = await profileRes.json();
 
-  await upsertConn(uid, "linkedin", profile.sub ?? "", profile.name ?? "LinkedIn Account", data.access_token, true);
+  await upsertConn(uid, "linkedin", profile.sub ?? "", profile.name ?? "LinkedIn Account", data.access_token, true, profile.picture ?? "");
 }
 
 async function exchangeTwitter(code: string, verifier: string, uid: string) {
@@ -147,12 +152,13 @@ async function exchangeTwitter(code: string, verifier: string, uid: string) {
   const data = await res.json();
   if (data.error) throw new Error(data.error_description || data.error);
 
-  const meRes = await fetch("https://api.twitter.com/2/users/me?user.fields=name,username", {
+  const meRes = await fetch("https://api.twitter.com/2/users/me?user.fields=name,username,profile_image_url", {
     headers: { Authorization: `Bearer ${data.access_token}` },
   });
   const me = await meRes.json();
+  const pic = (me.data?.profile_image_url ?? "").replace("_normal", "_400x400");
 
-  await upsertConn(uid, "twitter", me.data?.username ?? "", me.data?.name ?? "X Account", data.access_token, true);
+  await upsertConn(uid, "twitter", me.data?.username ?? "", me.data?.name ?? "X Account", data.access_token, true, pic);
 }
 
 export default async (req: Request) => {

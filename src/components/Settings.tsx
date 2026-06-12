@@ -18,7 +18,7 @@ interface OAuthGroup {
 const OAUTH_GROUPS: OAuthGroup[] = [
   {
     key: "meta", label: "Meta", emoji: "📘", covers: ["instagram","facebook"], color: "#1877F2",
-    guide: "1. developers.facebook.com → Create App → Business type\n2. Add products: Instagram Graph API + Marketing API\n3. Settings → Basic → copy App ID & App Secret\n4. Add Valid OAuth Redirect URI (see box above)\n5. Permissions used: pages_show_list, pages_read_engagement, business_management, ads_read",
+    guide: "1. developers.facebook.com → Create App → Business type\n2. Add products: Instagram Graph API + Marketing API\n3. Settings → Basic → copy App ID & App Secret\n4. Add Valid OAuth Redirect URI (see box above)\n5. Request: instagram_basic, pages_read_engagement, ads_read",
     setupUrl: "https://developers.facebook.com/apps", envVars: ["VITE_META_APP_ID","META_APP_SECRET"],
     buildUrl: (uid) => {
       const id = import.meta.env.VITE_META_APP_ID; if (!id) return null;
@@ -92,6 +92,7 @@ export function Settings({ user }: { user: AppUser }) {
 
   const isConnected    = (g: OAuthGroup) => g.covers.some(p => connections[p]?.connected);
   const getAccountName = (g: OAuthGroup) => g.covers.map(p => connections[p]).find(c => c?.connected)?.account_name ?? "";
+  const getAccountPic  = (g: OAuthGroup) => g.covers.map(p => connections[p]).find(c => c?.connected)?.profile_picture_url ?? "";
 
   const handleConnect = (g: OAuthGroup) => {
     const url = g.buildUrl(user.uid);
@@ -113,11 +114,11 @@ export function Settings({ user }: { user: AppUser }) {
         <p className="text-sm" style={{ color:"var(--muted)" }}>Connect your platforms and manage preferences</p>
       </div>
 
-      {oauthMsg   && <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3"><CheckCircle2 size={15} className="shrink-0 mt-0.5"/>{oauthMsg}</div>}
-      {oauthError && <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3"><AlertCircle size={15} className="shrink-0 mt-0.5"/>{oauthError}</div>}
+      {oauthMsg   && <div className="flex items-start gap-2 text-sm rounded-xl px-4 py-3" style={{ background:"var(--success-bg)", color:"var(--success)" }}><CheckCircle2 size={15} className="shrink-0 mt-0.5"/>{oauthMsg}</div>}
+      {oauthError && <div className="flex items-start gap-2 text-sm rounded-xl px-4 py-3" style={{ background:"var(--danger-bg)", color:"var(--danger)" }}><AlertCircle size={15} className="shrink-0 mt-0.5"/>{oauthError}</div>}
 
       {/* Appearance */}
-      <div className="rounded-2xl p-5 border shadow-sm" style={{ background:"var(--card)", borderColor:"var(--border)" }}>
+      <div className="glow-card rounded-2xl p-5">
         <h2 className="font-display text-sm font-semibold mb-4" style={{ color:"var(--text)" }}>Appearance</h2>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -143,7 +144,7 @@ export function Settings({ user }: { user: AppUser }) {
       </div>
 
       {/* Platform connections */}
-      <div className="rounded-2xl border shadow-sm overflow-hidden" style={{ background:"var(--card)", borderColor:"var(--border)" }}>
+      <div className="glow-card rounded-2xl overflow-hidden">
         <div className="p-5 border-b" style={{ borderColor:"var(--border)" }}>
           <h2 className="font-display text-sm font-semibold" style={{ color:"var(--text)" }}>Platform Connections</h2>
           <p className="text-xs mt-1" style={{ color:"var(--muted)" }}>One-click OAuth login — no token pasting. Each button opens the platform's official login page.</p>
@@ -157,7 +158,11 @@ export function Settings({ user }: { user: AppUser }) {
             <div key={group.key} className="border-b last:border-b-0" style={{ borderColor:"var(--border)" }}>
               <div className="flex items-center justify-between p-4 gap-3 flex-wrap">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl border" style={{ background:`${group.color}12`, borderColor:`${group.color}20` }}>{group.emoji}</div>
+                  {getAccountPic(group) ? (
+                    <img src={getAccountPic(group)} alt="" className="w-10 h-10 rounded-xl object-cover avatar-ring" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl border" style={{ background:`${group.color}12`, borderColor:`${group.color}20` }}>{group.emoji}</div>
+                  )}
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold" style={{ color:"var(--text)" }}>{group.label}</p>
@@ -165,8 +170,8 @@ export function Settings({ user }: { user: AppUser }) {
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {connected
-                        ? <><Wifi size={10} className="text-green-500"/><span className="text-xs text-green-600 font-medium">Connected{name ? ` · ${name}` : ""}</span></>
-                        : <><WifiOff size={10} style={{ color:"var(--muted)" }}/><span className="text-xs" style={{ color:"var(--muted)" }}>Not connected</span></>
+                        ? <span className="pill pill-success"><Wifi size={9}/> Connected{name ? ` · ${name}` : ""}</span>
+                        : <span className="pill pill-neutral"><WifiOff size={9}/> Not connected</span>
                       }
                     </div>
                   </div>
@@ -176,7 +181,7 @@ export function Settings({ user }: { user: AppUser }) {
                     {open ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
                   </button>
                   {connected
-                    ? <button onClick={() => handleDisconnect(group)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border text-red-500 border-red-200 hover:bg-red-50 transition-all"><LogOut size={12}/>Disconnect</button>
+                    ? <button onClick={() => handleDisconnect(group)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-all" style={{ borderColor:"var(--danger)", color:"var(--danger)", background:"var(--danger-bg)" }}><LogOut size={12}/>Disconnect</button>
                     : <button onClick={() => handleConnect(group)} className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl text-white hover:opacity-90 transition-all" style={{ background:group.color }}>{group.emoji} Connect with {group.label}</button>
                   }
                 </div>

@@ -82,7 +82,7 @@ export function Reports({ user }: { user: AppUser }) {
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
-      <Loader2 size={22} className="animate-spin text-brand" />
+      <Loader2 size={22} className="animate-spin gradient-text" />
     </div>
   );
 
@@ -102,7 +102,7 @@ export function Reports({ user }: { user: AppUser }) {
             {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>)}
           </select>
           <button onClick={exportPDF} disabled={exporting}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand hover:opacity-90 transition-all disabled:opacity-60 shrink-0">
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white gradient-primary hover:opacity-90 transition-all disabled:opacity-60 shrink-0">
             {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             {exporting ? "Generating PDF…" : "Export PDF"}
           </button>

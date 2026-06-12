@@ -7,12 +7,14 @@ import { PlatformPage } from "./components/PlatformPage";
 import { Analytics } from "./components/Analytics";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
+import { Composer } from "./components/Composer";
 import type { AppUser } from "./lib/supabase";
 import type { PlatformId } from "./types";
 import { Loader2, Zap, Mail, Lock, UserPlus, LogIn } from "lucide-react";
 
 export type Page =
   | "overview"
+  | "composer"
   | PlatformId
   | "analytics"
   | "reports"
@@ -74,11 +76,12 @@ export default function App() {
   function renderPage() {
     if (!user) return null;
     if (page === "overview")   return <Overview   user={user} onNavigate={setPage} />;
+    if (page === "composer")   return <Composer   user={user} />;
     if (page === "analytics")  return <Analytics  user={user} />;
     if (page === "reports")    return <Reports    user={user} />;
     if (page === "settings")   return <Settings   user={user} />;
     // Platform pages
-    const platforms: PlatformId[] = ["instagram","facebook","linkedin","twitter","tiktok","youtube"];
+    const platforms: PlatformId[] = ["instagram","facebook","linkedin","twitter","tiktok","youtube","google_ads"];
     if (platforms.includes(page as PlatformId)) {
       return <PlatformPage user={user} platformId={page as PlatformId} />;
     }
@@ -126,13 +129,13 @@ function LoginPage({ onDemo }: { onDemo: () => void }) {
         <div className="rounded-2xl p-8 shadow-lg border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
           {/* Logo */}
           <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-brand flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 gradient-primary shadow-lg">
               <Zap size={26} className="text-white" fill="currentColor" />
             </div>
             <h1 className="font-display text-2xl font-semibold tracking-tight mb-1" style={{ color: "var(--text)" }}>
-              Velox<span className="text-brand">Space</span>
+              Velox<span className="gradient-text">Space</span>
             </h1>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Social analytics platform</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>The marketing command center for social & ads</p>
           </div>
 
           <div className="space-y-3">
@@ -156,7 +159,7 @@ function LoginPage({ onDemo }: { onDemo: () => void }) {
             {msg   && <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">{msg}</p>}
 
             <button onClick={handle} disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-60 text-white font-semibold text-sm py-2.5 rounded-xl transition-all">
+              className="w-full flex items-center justify-center gap-2 gradient-primary hover:opacity-90 disabled:opacity-60 text-white font-semibold text-sm py-2.5 rounded-xl transition-all shadow-md">
               {loading ? <Loader2 size={15} className="animate-spin" /> : mode === "signup" ? <UserPlus size={15} /> : <LogIn size={15} />}
               {loading ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
             </button>

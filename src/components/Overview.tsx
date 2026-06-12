@@ -1,65 +1,54 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { PLATFORMS } from "../lib/platforms";
+import { PLATFORMS, METRIC_DEFINITIONS } from "../lib/platforms";
 import { AIInsights } from "./AIInsights";
 import { TopPosts } from "./TopPosts";
 import type { AppUser } from "../lib/supabase";
 import type { Page } from "../App";
-import type { SocialMetric, PlatformPost, AIInsight } from "../types";
-import { Users, Eye, TrendingUp, Wifi, WifiOff, ArrowRight, RefreshCw, Sparkles, Loader2 } from "lucide-react";
+import type { SocialMetric, PlatformPost, AIInsight, AdMetric } from "../types";
+import { Users, Eye, TrendingUp, Wifi, WifiOff, ArrowRight, RefreshCw, Sparkles, Loader2, BarChart3, Info } from "lucide-react";
 
 function fmtNum(n: number): string {
   if (n >= 1_000_000) return `${(n/1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n/1_000).toFixed(1)}k`;
   return n.toLocaleString();
 }
+function fmtCurrency(n: number): string {
+  if (n >= 1_000_000) return `$${(n/1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `$${(n/1_000).toFixed(1)}k`;
+  return `$${n.toFixed(2)}`;
+}
 const getPlatformEmoji = (id: string) =>
-  ({ instagram:"📸",facebook:"👥",linkedin:"💼",twitter:"🐦",tiktok:"🎵",youtube:"▶️" }[id] ?? "📊");
-
-const DEMO_METRICS: SocialMetric[] = [
-  { id:"1",uid:"demo_v2",platform:"instagram",followers:12400,following:842,posts:287,likes:4820,comments:340,shares:190,reach:28000,impressions:45000,engagement_rate:4.2,profile_views:1200,synced_at:new Date().toISOString() },
-  { id:"2",uid:"demo_v2",platform:"facebook", followers:8900, following:0,  posts:142,likes:2100,comments:180,shares:95, reach:15000,impressions:32000,engagement_rate:2.8,profile_views:780, synced_at:new Date().toISOString() },
-  { id:"3",uid:"demo_v2",platform:"tiktok",   followers:28400,following:320,posts:96, likes:48000,comments:2800,shares:6400,reach:142000,impressions:210000,engagement_rate:12.6,profile_views:8400,synced_at:new Date().toISOString() },
-  { id:"4",uid:"demo_v2",platform:"youtube",  followers:4200, following:0,  posts:38, likes:3200,comments:840,shares:120,reach:24000,impressions:48000,engagement_rate:6.8,profile_views:3800,synced_at:new Date().toISOString() },
-];
-
-const DEMO_POSTS: PlatformPost[] = [
-  { id:"dp1",uid:"demo_v2",platform:"tiktok",   post_id:"dp1",caption:"How we grew 10k followers in 30 days 🚀",media_url:"",thumbnail_url:"",post_url:"#",likes:14800,comments:920,shares:3400,reach:84000,impressions:120000,views:98000,engagement_rate:18.4,posted_at:new Date(Date.now()-86400000).toISOString(),synced_at:new Date().toISOString() },
-  { id:"dp2",uid:"demo_v2",platform:"instagram",post_id:"dp2",caption:"Behind the scenes at our latest shoot 🎬",media_url:"",thumbnail_url:"",post_url:"#",likes:1240,comments:87,shares:34,reach:8400,impressions:12000,views:0,engagement_rate:6.8,posted_at:new Date(Date.now()-2*86400000).toISOString(),synced_at:new Date().toISOString() },
-  { id:"dp3",uid:"demo_v2",platform:"youtube",  post_id:"dp3",caption:"The complete guide to social media analytics in 2025",media_url:"",thumbnail_url:"",post_url:"#",likes:3200,comments:480,shares:0,reach:28000,impressions:48000,views:28000,engagement_rate:9.2,posted_at:new Date(Date.now()-3*86400000).toISOString(),synced_at:new Date().toISOString() },
-];
+  ({ instagram:"📸",facebook:"👥",linkedin:"💼",twitter:"🐦",tiktok:"🎵",youtube:"▶️",google_ads:"📊" }[id] ?? "📊");
 
 export function Overview({ user, onNavigate }: { user: AppUser; onNavigate: (p: Page) => void }) {
-  const [metrics,    setMetrics]    = useState<SocialMetric[]>([]);
-  const [topPosts,   setTopPosts]   = useState<PlatformPost[]>([]);
-  const [insight,    setInsight]    = useState<AIInsight | null>(null);
-  const [loading,    setLoading]    = useState(true);
-  const [syncing,    setSyncing]    = useState(false);
-  const [aiLoading,  setAiLoading]  = useState(false);
+  const [metrics,   setMetrics]   = useState<SocialMetric[]>([]);
+  const [topPosts,  setTopPosts]  = useState<PlatformPost[]>([]);
+  const [insight,   setInsight]   = useState<AIInsight | null>(null);
+  const [adMetrics, setAdMetrics] = useState<AdMetric[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [syncing,   setSyncing]   = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
 
   useEffect(() => { loadData(); }, [user.uid]);
 
   const loadData = async () => {
-    if (user.uid === "demo_v2") {
-      setMetrics(DEMO_METRICS);
-      setTopPosts(DEMO_POSTS);
-      setLoading(false);
-      return;
-    }
-    const [mRes, pRes, iRes] = await Promise.all([
+    const [mRes, pRes, iRes, aRes] = await Promise.all([
       supabase.from("social_metrics").select("*").eq("uid", user.uid),
       supabase.from("platform_posts").select("*").eq("uid", user.uid).order("engagement_rate",{ascending:false}).limit(9),
       supabase.from("ai_insights").select("*").eq("uid", user.uid).eq("platform","all").order("generated_at",{ascending:false}).limit(1).maybeSingle(),
+      supabase.from("ad_metrics").select("*").eq("uid", user.uid).order("recorded_at",{ascending:false}).limit(20),
     ]);
     setMetrics((mRes.data as SocialMetric[]) ?? []);
     setTopPosts((pRes.data as PlatformPost[]) ?? []);
     setInsight(iRes.data as AIInsight ?? null);
+    setAdMetrics((aRes.data as AdMetric[]) ?? []);
     setLoading(false);
   };
 
   const syncAll = async () => {
     setSyncing(true);
-    // Get all connections with tokens
     const { data: conns } = await supabase.from("platform_connections").select("*").eq("uid", user.uid).eq("connected", true);
     if (!conns?.length) { setSyncing(false); return; }
 
@@ -79,6 +68,12 @@ export function Overview({ user, onNavigate }: { user: AppUser; onNavigate: (p: 
           await supabase.from("platform_posts").delete().eq("uid",user.uid).eq("platform",conn.platform);
           await supabase.from("platform_posts").upsert(rows);
         }
+        if (data.ad_metrics) {
+          await supabase.from("ad_metrics").insert({
+            uid: user.uid, platform: conn.platform, period_label: "Last 30 days",
+            ...data.ad_metrics, recorded_at: new Date().toISOString(),
+          });
+        }
       } catch {}
     }
     await loadData();
@@ -91,10 +86,11 @@ export function Overview({ user, onNavigate }: { user: AppUser; onNavigate: (p: 
     try {
       const { data: m } = await supabase.from("social_metrics").select("*").eq("uid", user.uid);
       const { data: p } = await supabase.from("platform_posts").select("*").eq("uid", user.uid).order("engagement_rate",{ascending:false}).limit(12);
+      const { data: ad } = await supabase.from("ad_metrics").select("*").eq("uid", user.uid).order("recorded_at",{ascending:false}).limit(10);
       if (!m?.length) return;
       const res = await fetch("/api/ai-insights", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ metrics: m, posts: p ?? [] }),
+        body: JSON.stringify({ metrics: m, posts: p ?? [], ad_metrics: ad ?? [] }),
       });
       const data = await res.json();
       if (data.overall_score !== undefined) {
@@ -106,39 +102,66 @@ export function Overview({ user, onNavigate }: { user: AppUser; onNavigate: (p: 
     finally { setAiLoading(false); }
   };
 
-  const totalFollowers  = metrics.reduce((s, m) => s + m.followers, 0);
-  const totalReach      = metrics.reduce((s, m) => s + m.reach, 0);
-  const totalImpressions= metrics.reduce((s, m) => s + m.impressions, 0);
-  const avgEngagement   = metrics.length ? metrics.reduce((s, m) => s + m.engagement_rate, 0) / metrics.length : 0;
-  const connectedCount  = metrics.length;
+  const totalFollowers   = metrics.reduce((s, m) => s + m.followers, 0);
+  const totalReach       = metrics.reduce((s, m) => s + m.reach, 0);
+  const totalImpressions = metrics.reduce((s, m) => s + m.impressions, 0);
+  const avgEngagement    = metrics.length ? metrics.reduce((s, m) => s + m.engagement_rate, 0) / metrics.length : 0;
+  const connectedCount   = metrics.length;
 
-  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 size={22} className="animate-spin text-brand"/></div>;
+  // Aggregate ad metrics for marketing performance
+  const adTotals = adMetrics.reduce((acc, a) => ({
+    spend: acc.spend + Number(a.ad_spend ?? 0),
+    revenue: acc.revenue + Number(a.revenue ?? 0),
+    clicks: acc.clicks + Number(a.clicks ?? 0),
+    impressions: acc.impressions + Number(a.impressions ?? 0),
+    conversions: acc.conversions + Number(a.conversions ?? 0),
+    leads: acc.leads + Number(a.leads ?? 0),
+  }), { spend: 0, revenue: 0, clicks: 0, impressions: 0, conversions: 0, leads: 0 });
+
+  const hasAdData = adMetrics.length > 0 && adTotals.spend > 0;
+  const roas = adTotals.spend > 0 ? adTotals.revenue / adTotals.spend : 0;
+  const roi  = adTotals.spend > 0 ? ((adTotals.revenue - adTotals.spend) / adTotals.spend) * 100 : 0;
+  const ctr  = adTotals.impressions > 0 ? (adTotals.clicks / adTotals.impressions) * 100 : 0;
+  const cpa  = adTotals.conversions > 0 ? adTotals.spend / adTotals.conversions : 0;
+  const cpm  = adTotals.impressions > 0 ? (adTotals.spend / adTotals.impressions) * 1000 : 0;
+  const cpc  = adTotals.clicks > 0 ? adTotals.spend / adTotals.clicks : 0;
+
+  const marketingValues: Record<string, { value: number; display: string }> = {
+    ROAS: { value: roas, display: `${roas.toFixed(2)}×` },
+    ROI:  { value: roi,  display: `${roi.toFixed(1)}%` },
+    CTR:  { value: ctr,  display: `${ctr.toFixed(2)}%` },
+    CPA:  { value: cpa,  display: fmtCurrency(cpa) },
+    CPM:  { value: cpm,  display: fmtCurrency(cpm) },
+    CPC:  { value: cpc,  display: fmtCurrency(cpc) },
+  };
+
+  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 size={22} className="animate-spin" style={{ color:"var(--primary)" }}/></div>;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold mb-1" style={{ color:"var(--text)" }}>
             Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {user.name.split(" ")[0]} 👋
           </h1>
-          <p className="text-sm" style={{ color:"var(--muted)" }}>Real-time performance across all your social platforms</p>
+          <p className="text-sm" style={{ color:"var(--muted)" }}>Real-time performance across all your connected accounts</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="text-xs px-3 py-1.5 rounded-full border font-medium flex items-center gap-1.5" style={{ color:"var(--muted)", borderColor:"var(--border)" }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="pill pill-neutral">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background:"var(--success)" }}/>
             {connectedCount} platform{connectedCount !== 1 ? "s" : ""} synced
           </div>
           <button onClick={syncAll} disabled={syncing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand hover:opacity-90 transition-all disabled:opacity-60">
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60 gradient-primary hover:opacity-90">
             {syncing ? <Loader2 size={13} className="animate-spin"/> : <RefreshCw size={13}/>}
-            {syncing ? "Syncing all…" : "Sync all"}
+            {syncing ? "Syncing…" : "Sync all"}
           </button>
           <button onClick={generateOverallInsights} disabled={aiLoading || !metrics.length}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all disabled:opacity-50"
             style={{ borderColor:"var(--border)", color:"var(--text)", background:"var(--card)" }}>
-            {aiLoading ? <Loader2 size={13} className="animate-spin"/> : <Sparkles size={13} className="text-brand"/>}
-            AI insights
+            {aiLoading ? <Loader2 size={13} className="animate-spin"/> : <Sparkles size={13} style={{ color:"var(--primary)" }}/>}
+            AI analysis
           </button>
         </div>
       </div>
@@ -146,42 +169,103 @@ export function Overview({ user, onNavigate }: { user: AppUser; onNavigate: (p: 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label:"Total Followers",   value:fmtNum(totalFollowers),           Icon:Users,      color:"#4f46e5" },
-          { label:"Avg Engagement",    value:`${avgEngagement.toFixed(1)}%`,   Icon:TrendingUp, color:"#059669" },
-          { label:"Monthly Reach",     value:fmtNum(totalReach),               Icon:Eye,        color:"#0891b2" },
-          { label:"Total Impressions", value:fmtNum(totalImpressions),         Icon:BarChartIcon,color:"#9333ea"},
+          { label:"Total Followers",   value:fmtNum(totalFollowers),   Icon:Users,      color:"var(--primary)" },
+          { label:"Avg Engagement",    value:`${avgEngagement.toFixed(1)}%`, Icon:TrendingUp, color:"var(--success)" },
+          { label:"Monthly Reach",     value:fmtNum(totalReach),       Icon:Eye,        color:"var(--info)"    },
+          { label:"Total Impressions", value:fmtNum(totalImpressions), Icon:BarChart3,  color:"#9333ea"        },
         ].map(({ label, value, Icon, color }) => (
-          <div key={label} className="rounded-2xl p-5 border shadow-sm" style={{ background:"var(--card)", borderColor:"var(--border)" }}>
+          <div key={label} className="glow-card rounded-2xl p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-medium uppercase tracking-wide" style={{ color:"var(--muted)" }}>{label}</p>
               <div className="p-2 rounded-xl" style={{ background:`${color}15`, color }}><Icon size={15}/></div>
             </div>
-            <p className="text-2xl font-mono font-semibold" style={{ color:"var(--text)" }}>{value}</p>
+            <p className="text-2xl font-mono font-semibold tabular-nums" style={{ color:"var(--text)" }}>{value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Marketing Performance */}
+      <div className="glow-card rounded-2xl overflow-hidden">
+        <div className="p-5 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor:"var(--border)" }}>
+          <div>
+            <h2 className="font-display text-base font-semibold flex items-center gap-2" style={{ color:"var(--text)" }}>
+              <div className="p-1.5 rounded-lg" style={{ background:"var(--primary-soft)" }}><TrendingUp size={14} style={{ color:"var(--primary)" }}/></div>
+              Marketing Performance
+            </h2>
+            <p className="text-xs mt-1" style={{ color:"var(--muted)" }}>
+              {hasAdData ? "From your connected ad accounts, last 30 days" : "Connect Google Ads to see real ROAS, ROI, CTR & CPA"}
+            </p>
+          </div>
+          {!hasAdData && (
+            <button onClick={() => onNavigate("google_ads" as Page)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-90"
+              style={{ background:"var(--primary-soft)", color:"var(--primary)" }}>
+              Connect Google Ads →
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-x divide-y md:divide-y-0" style={{ borderColor:"var(--border)" }}>
+          {METRIC_DEFINITIONS.filter(d => ["ROAS","ROI","CTR","CPA","CPM","CPC"].includes(d.abbr)).map((def) => {
+            const data = marketingValues[def.abbr];
+            const isHovered = hoveredMetric === def.abbr;
+            return (
+              <div key={def.abbr}
+                className="relative p-4 transition-colors cursor-default"
+                style={{ borderColor:"var(--border)" }}
+                onMouseEnter={() => setHoveredMetric(def.abbr)}
+                onMouseLeave={() => setHoveredMetric(null)}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: def.color }}>{def.abbr}</span>
+                  <Info size={10} style={{ color:"var(--muted)" }} />
+                </div>
+                {hasAdData ? (
+                  <p className="text-xl font-mono font-bold tabular-nums" style={{ color:"var(--text)" }}>{data.display}</p>
+                ) : (
+                  <p className="text-xl font-mono font-bold tabular-nums" style={{ color:"var(--muted)" }}>—</p>
+                )}
+                <p className="text-[10px] mt-1 truncate" style={{ color:"var(--muted)" }}>{def.full}</p>
+
+                {/* Tooltip */}
+                {isHovered && (
+                  <div className="absolute z-20 left-0 top-full mt-2 w-64 p-3 rounded-xl shadow-lg text-left"
+                    style={{ background:"var(--card)", border:"1px solid var(--border)", boxShadow:"var(--shadow-lg)" }}>
+                    <p className="text-xs font-semibold mb-1" style={{ color:"var(--text)" }}>{def.full}</p>
+                    <p className="text-[11px] font-mono mb-2" style={{ color:"var(--primary)" }}>{def.formula}</p>
+                    <p className="text-[11px] leading-relaxed mb-2" style={{ color:"var(--text-soft)" }}>{def.description}</p>
+                    <p className="text-[10px]" style={{ color:"var(--muted)" }}>{def.benchmark}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Platform cards */}
       <div>
         <h2 className="font-display text-sm font-semibold uppercase tracking-wider mb-3" style={{ color:"var(--muted)" }}>Platform status</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {PLATFORMS.map((platform) => {
+          {PLATFORMS.filter(p => p.id !== "google_ads").map((platform) => {
             const m = metrics.find((x) => x.platform === platform.id);
             return (
               <div key={platform.id}
-                className="rounded-2xl border p-5 hover:shadow-md transition-all cursor-pointer group"
-                style={{ background:"var(--card)", borderColor:"var(--border)" }}
+                className="glow-card rounded-2xl p-5 cursor-pointer group"
                 onClick={() => onNavigate(platform.id as Page)}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background:`${platform.color}15` }}>
-                      {getPlatformEmoji(platform.id)}
-                    </div>
+                    {m?.profile_picture_url ? (
+                      <img src={m.profile_picture_url} alt={platform.name} className="w-10 h-10 rounded-full object-cover avatar-ring" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background:`${platform.color}15` }}>
+                        {getPlatformEmoji(platform.id)}
+                      </div>
+                    )}
                     <div>
                       <p className="text-sm font-semibold" style={{ color:"var(--text)" }}>{platform.name}</p>
                       <div className="flex items-center gap-1 mt-0.5">
-                        {m ? <><Wifi size={10} className="text-green-500"/><span className="text-[10px] text-green-600 font-medium">Live data</span></>
-                           : <><WifiOff size={10} style={{ color:"var(--muted)" }}/><span className="text-[10px] font-medium" style={{ color:"var(--muted)" }}>Not connected</span></>}
+                        {m ? <span className="pill pill-success"><Wifi size={9}/> Live data</span>
+                           : <span className="pill pill-neutral"><WifiOff size={9}/> Not connected</span>}
                       </div>
                     </div>
                   </div>
@@ -189,8 +273,8 @@ export function Overview({ user, onNavigate }: { user: AppUser; onNavigate: (p: 
                 </div>
                 {m ? (
                   <div className="grid grid-cols-3 gap-3">
-                    {[["Followers",fmtNum(m.followers)],["Reach",fmtNum(m.reach)],[`${m.engagement_rate.toFixed(1)}%`,"ER"]].map(([v,l]) => (
-                      <div key={l}><p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color:"var(--muted)" }}>{l}</p><p className="text-sm font-semibold font-mono" style={{ color:"var(--text)" }}>{v}</p></div>
+                    {[[fmtNum(m.followers),"Followers"],[fmtNum(m.reach),"Reach"],[`${m.engagement_rate.toFixed(1)}%`,"ER"]].map(([v,l]) => (
+                      <div key={l}><p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color:"var(--muted)" }}>{l}</p><p className="text-sm font-semibold font-mono tabular-nums" style={{ color:"var(--text)" }}>{v}</p></div>
                     ))}
                   </div>
                 ) : (
@@ -205,14 +289,8 @@ export function Overview({ user, onNavigate }: { user: AppUser; onNavigate: (p: 
       {/* AI Insights + Top Posts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AIInsights insight={insight} loading={aiLoading} onRefresh={generateOverallInsights}/>
-        <div>
-          <TopPosts posts={topPosts} title="Top posts across all platforms"/>
-        </div>
+        <TopPosts posts={topPosts} title="Top posts across all platforms"/>
       </div>
     </div>
   );
-}
-
-function BarChartIcon({ size }: { size: number }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
 }

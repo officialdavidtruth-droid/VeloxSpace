@@ -2,28 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Light theme (default) ─────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════
+   VELOX SPACE — PREMIUM DESIGN SYSTEM
+   Inspired by Stripe / Linear: data-dense, polished, refined
+   ════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --bg:        #f8fafc;
+  /* Surfaces */
+  --bg:        #f6f7fb;
   --surface:   #ffffff;
   --card:      #ffffff;
-  --border:    #e2e8f0;
-  --text:      #0f172a;
-  --muted:     #64748b;
-  --primary:   #4f46e5;
-  --primary-l: #eef2ff;
+  --card-alt:  #fafbfd;
+  --border:    #e8eaf0;
+  --border-strong: #d8dbe5;
+
+  /* Text */
+  --text:      #14161f;
+  --text-soft: #44485a;
+  --muted:     #8b90a3;
+
+  /* Brand */
+  --primary:      #5b5cf6;
+  --primary-soft: #5b5cf615;
+  --primary-l:    #eef0ff;
+
+  /* Semantic */
+  --success: #16a34a;
+  --success-bg: #f0fdf4;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --danger:  #dc2626;
+  --danger-bg: #fef2f2;
+  --info:    #0891b2;
+  --info-bg: #ecfeff;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(20,22,31,0.04);
+  --shadow-md: 0 2px 8px rgba(20,22,31,0.06), 0 1px 2px rgba(20,22,31,0.04);
+  --shadow-lg: 0 8px 24px rgba(20,22,31,0.08), 0 2px 6px rgba(20,22,31,0.04);
+  --shadow-glow: 0 0 0 1px rgba(91,92,246,0.08), 0 4px 16px rgba(91,92,246,0.12);
 }
 
-/* ── Dark theme ────────────────────────────────────────────────────────── */
 .dark {
-  --bg:        #05070f;
-  --surface:   #0c0f1e;
-  --card:      #10142a;
-  --border:    #1e2240;
-  --text:      #c8ceeb;
-  --muted:     #4e5880;
-  --primary:   #7c6af7;
-  --primary-l: #1e1a3a;
+  --bg:        #0a0b10;
+  --surface:   #12141d;
+  --card:      #161823;
+  --card-alt:  #1c1e2b;
+  --border:    #252836;
+  --border-strong: #343849;
+
+  --text:      #eef0f7;
+  --text-soft: #b4b8cc;
+  --muted:     #6b7088;
+
+  --primary:      #7c7dff;
+  --primary-soft: #7c7dff1a;
+  --primary-l:    #1c1c3a;
+
+  --success: #34d399;
+  --success-bg: #052e1c;
+  --warning: #fbbf24;
+  --warning-bg: #2e1f03;
+  --danger:  #f87171;
+  --danger-bg: #2e0a0a;
+  --info:    #22d3ee;
+  --info-bg: #042a31;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.5);
+  --shadow-glow: 0 0 0 1px rgba(124,125,255,0.15), 0 4px 20px rgba(124,125,255,0.2);
 }
 
 html, body, #root { height: 100%; margin: 0; padding: 0; }
@@ -33,20 +81,57 @@ body {
   color: var(--text);
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1;
 }
 
-/* ── Platform gradient decorators ─────────────────────────────────────── */
+/* ── Gradient accents ─────────────────────────────────────────────────── */
+.gradient-primary { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); }
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
 .ig-gradient { background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
-.yt-gradient { background: linear-gradient(135deg, #ff0000, #cc0000); }
+.glow-card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.glow-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
 /* ── Recharts tooltip ─────────────────────────────────────────────────── */
 .recharts-default-tooltip {
   background: var(--card) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* ── Tag pill ─────────────────────────────────────────────────────────── */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.pill-success { background: var(--success-bg); color: var(--success); }
+.pill-warning { background: var(--warning-bg); color: var(--warning); }
+.pill-danger  { background: var(--danger-bg);  color: var(--danger);  }
+.pill-info    { background: var(--info-bg);    color: var(--info);    }
+.pill-neutral { background: var(--card-alt);   color: var(--muted); border: 1px solid var(--border); }
+
+/* ── Avatar ───────────────────────────────────────────────────────────── */
+.avatar-ring {
+  border-radius: 9999px;
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--border);
 }

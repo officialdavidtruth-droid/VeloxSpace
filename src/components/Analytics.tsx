@@ -103,7 +103,7 @@ export function Analytics({ user }: { user: AppUser }) {
       {/* Calculator */}
       <div className="rounded-2xl p-6 border shadow-sm" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
         <h2 className="font-display text-base font-semibold mb-1 flex items-center gap-2" style={{ color: "var(--text)" }}>
-          <Calculator size={16} className="text-brand" /> Metrics Calculator
+          <Calculator size={16} className="gradient-text" /> Metrics Calculator
         </h2>
         <p className="text-xs mb-5" style={{ color: "var(--muted)" }}>
           Enter your campaign data and all metrics are calculated instantly
@@ -129,7 +129,7 @@ export function Analytics({ user }: { user: AppUser }) {
           ))}
         </div>
         <button onClick={saveMetrics} disabled={saving || (!sp && !rv)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-brand hover:opacity-90 transition-all disabled:opacity-40">
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white gradient-primary hover:opacity-90 transition-all disabled:opacity-40">
           {saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <CheckCircle2 size={13} /> : <Save size={13} />}
           {saving ? "Saving…" : saved ? "Saved!" : "Save to history"}
         </button>

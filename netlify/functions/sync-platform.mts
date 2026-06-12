@@ -10,6 +10,7 @@
 interface SyncResult {
   metrics: Record<string, unknown>;
   posts: Record<string, unknown>[];
+  ad_metrics?: { ad_spend: number; revenue: number; clicks: number; impressions: number; conversions: number; leads: number; currency: string };
   error?: string;
 }
 
@@ -68,6 +69,7 @@ async function syncInstagram(accountId: string, token: string): Promise<SyncResu
       impressions:     0,
       engagement_rate: parseFloat(avgEngagement.toFixed(4)),
       profile_views:   0,
+      profile_picture_url: profile.profile_picture_url ?? "",
     },
     posts: posts.slice(0, 10),
   };
@@ -77,7 +79,7 @@ async function syncInstagram(accountId: string, token: string): Promise<SyncResu
 async function syncFacebook(pageId: string, token: string): Promise<SyncResult> {
   // 1. Page info
   const pageRes = await fetch(
-    `https://graph.facebook.com/v18.0/${pageId}?fields=id,name,followers_count,description&access_token=${token}`
+    `https://graph.facebook.com/v18.0/${pageId}?fields=id,name,followers_count,description,picture.type(large)&access_token=${token}`
   );
   const page = await pageRes.json();
   if (page.error) throw new Error(`Facebook: ${page.error.message}`);
@@ -122,6 +124,7 @@ async function syncFacebook(pageId: string, token: string): Promise<SyncResult> 
         ? posts.reduce((s: number, p: any) => s + p.engagement_rate, 0) / posts.length
         : 0,
       profile_views: 0,
+      profile_picture_url: page.picture?.data?.url ?? "",
     },
     posts: posts.slice(0, 10),
   };
@@ -264,6 +267,7 @@ async function syncYouTube(channelId: string, token: string): Promise<SyncResult
         ? posts.reduce((s: number, p: any) => s + p.engagement_rate, 0) / posts.length
         : 0,
       profile_views:   0,
+      profile_picture_url: ch?.snippet?.thumbnails?.default?.url ?? "",
     },
     posts: posts.slice(0, 10),
   };
@@ -311,7 +315,7 @@ async function syncLinkedIn(orgId: string, token: string): Promise<SyncResult> {
 async function syncTwitter(username: string, token: string): Promise<SyncResult> {
   // Get user by username
   const userRes = await fetch(
-    `https://api.twitter.com/2/users/by/username/${username.replace("@","")}?user.fields=public_metrics,description`,
+    `https://api.twitter.com/2/users/by/username/${username.replace("@","")}?user.fields=public_metrics,description,profile_image_url`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const userData = await userRes.json();
@@ -361,8 +365,99 @@ async function syncTwitter(username: string, token: string): Promise<SyncResult>
       impressions:     0,
       engagement_rate: 0,
       profile_views:   0,
+      profile_picture_url: (user?.profile_image_url ?? "").replace("_normal", "_400x400"),
     },
     posts: posts.slice(0, 10),
+  };
+}
+
+// ── Google Ads API ─────────────────────────────────────────────────────────
+// access_token field stores JSON: { access_token, refresh_token, expiry }
+async function syncGoogleAds(customerId: string, tokenJson: string): Promise<SyncResult> {
+  let tokenData: { access_token: string; refresh_token: string; expiry: number };
+  try { tokenData = JSON.parse(tokenJson); } catch { throw new Error("Google Ads: invalid stored token"); }
+
+  let accessToken = tokenData.access_token;
+
+  // Refresh if expired
+  if (Date.now() > (tokenData.expiry ?? 0) && tokenData.refresh_token) {
+    const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "",
+        client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
+        refresh_token: tokenData.refresh_token,
+        grant_type: "refresh_token",
+      }),
+    });
+    const refreshed = await refreshRes.json();
+    if (refreshed.error) throw new Error(`Google Ads token refresh: ${refreshed.error_description || refreshed.error}`);
+    accessToken = refreshed.access_token;
+  }
+
+  const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+  if (!devToken) throw new Error("Google Ads: GOOGLE_ADS_DEVELOPER_TOKEN not configured. Apply for one at ads.google.com/home/tools/manager-accounts/");
+
+  // Resolve a real customer ID if we only have the placeholder
+  let cleanId = customerId.replace(/-/g, "");
+  if (!cleanId || cleanId === "google_ads") {
+    const listRes = await fetch("https://googleads.googleapis.com/v17/customers:listAccessibleCustomers", {
+      headers: { Authorization: `Bearer ${accessToken}`, "developer-token": devToken },
+    });
+    const listData = await listRes.json();
+    if (listData.error) throw new Error(`Google Ads: ${listData.error.message}`);
+    cleanId = (listData.resourceNames?.[0] ?? "").replace("customers/", "");
+    if (!cleanId) throw new Error("Google Ads: no accessible accounts found for this Google account");
+  }
+
+  const query = `
+    SELECT campaign.name, campaign.status, metrics.cost_micros, metrics.clicks,
+           metrics.impressions, metrics.conversions, metrics.conversions_value, metrics.ctr
+    FROM campaign
+    WHERE segments.date DURING LAST_30_DAYS AND campaign.status != 'REMOVED'
+    ORDER BY metrics.cost_micros DESC LIMIT 10`;
+
+  const res = await fetch(`https://googleads.googleapis.com/v17/customers/${cleanId}/googleAds:search`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "developer-token": devToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Google Ads: ${(err as any).error?.message ?? res.statusText}`);
+  }
+  const data = await res.json();
+  const results = (data as any).results ?? [];
+
+  let totalSpend = 0, totalClicks = 0, totalImpr = 0, totalConv = 0, totalRevenue = 0;
+  const posts = results.map((r: any) => {
+    const spend = (r.metrics.costMicros ?? 0) / 1_000_000;
+    const revenue = r.metrics.conversionsValue ?? 0;
+    totalSpend += spend; totalClicks += r.metrics.clicks ?? 0;
+    totalImpr += r.metrics.impressions ?? 0; totalConv += r.metrics.conversions ?? 0;
+    totalRevenue += revenue;
+    return {
+      post_id: r.campaign.name, caption: r.campaign.name, media_url: "", thumbnail_url: "", post_url: "",
+      likes: 0, comments: 0, shares: 0,
+      reach: r.metrics.impressions ?? 0, impressions: r.metrics.impressions ?? 0, views: r.metrics.clicks ?? 0,
+      engagement_rate: (r.metrics.ctr ?? 0) * 100,
+      posted_at: new Date().toISOString(),
+    };
+  });
+
+  return {
+    metrics: {
+      followers: 0, following: 0, posts: results.length, likes: 0, comments: 0, shares: 0,
+      reach: totalImpr, impressions: totalImpr,
+      engagement_rate: totalImpr > 0 ? (totalClicks / totalImpr) * 100 : 0,
+      profile_views: 0, profile_picture_url: "",
+    },
+    posts: posts.slice(0, 10),
+    ad_metrics: {
+      ad_spend: totalSpend, revenue: totalRevenue, clicks: totalClicks,
+      impressions: totalImpr, conversions: Math.round(totalConv), leads: 0, currency: "USD",
+    },
   };
 }
 
@@ -388,6 +483,7 @@ export default async (req: Request) => {
       case "youtube":   result = await syncYouTube(account_id ?? "", access_token);   break;
       case "linkedin":  result = await syncLinkedIn(account_id ?? "", access_token);  break;
       case "twitter":   result = await syncTwitter(account_id ?? "", access_token);   break;
+      case "google_ads": result = await syncGoogleAds(account_id ?? "", access_token); break;
       default: return new Response(JSON.stringify({ error: `Unknown platform: ${platform}` }), { status: 400 });
     }
 
@@ -402,3 +498,7 @@ export default async (req: Request) => {
 };
 
 export const config = { path: "/api/sync-platform" };
+
+// Note: google_ads uses the same Google OAuth token stored in platform_connections
+// The sync-platform function handles "youtube" → YouTube analytics
+// For google_ads, the Google token (stored as JSON) contains both access+refresh token

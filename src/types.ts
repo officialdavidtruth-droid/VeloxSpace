@@ -6,6 +6,7 @@ export interface PlatformConnection {
   platform: PlatformId;
   account_id: string;
   account_name: string;
+  profile_picture_url?: string;
   access_token: string;
   connected: boolean;
   last_synced_at: string | null;
@@ -25,6 +26,7 @@ export interface SocialMetric {
   impressions: number;
   engagement_rate: number;
   profile_views: number;
+  profile_picture_url?: string;
   synced_at: string;
 }
 
@@ -55,6 +57,8 @@ export interface AIInsight {
   overall_score: number;
   top_platform: string;
   key_insight: string;
+  working: string[];
+  not_working: string[];
   recommendations: {
     platform: string;
     priority: "high" | "medium" | "low";
@@ -63,6 +67,7 @@ export interface AIInsight {
     action: string;
   }[];
   best_times: Record<string, string>;
+  content_insight: string;
   generated_at: string;
 }
 
@@ -79,6 +84,19 @@ export interface AdMetric {
   leads: number;
   currency: string;
   recorded_at: string;
+}
+
+export interface ScheduledPost {
+  id: string;
+  uid: string;
+  content: string;
+  media_url: string;
+  platforms: PlatformId[];
+  status: "draft" | "scheduled" | "published" | "failed";
+  results: Record<string, { success: boolean; post_url?: string; error?: string }>;
+  scheduled_for: string | null;
+  created_at: string;
+  published_at: string | null;
 }
 
 export interface AppUser {
@@ -106,7 +124,5 @@ export interface PlatformConfig {
   darkBgColor: string;
   handle: string;
   description: string;
+  canPost: boolean;
 }
-
-// extend PlatformId to include google_ads
-declare module "./types" {}

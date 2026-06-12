@@ -4,13 +4,13 @@ import type { AppUser } from "../lib/supabase";
 import { useTheme } from "../lib/theme";
 import { PLATFORMS } from "../lib/platforms";
 import {
-  LayoutDashboard, BarChart3, FileText, Settings,
+  LayoutDashboard, BarChart3, FileText, Settings, PenSquare,
   Sun, Moon, LogOut, Zap, ChevronRight, Menu, X,
 } from "lucide-react";
 
 const PLATFORM_ICONS: Record<string, string> = {
   instagram: "📸", facebook: "👥", linkedin: "💼",
-  twitter: "🐦", tiktok: "🎵", youtube: "▶️",
+  twitter: "🐦", tiktok: "🎵", youtube: "▶️", google_ads: "📊",
 };
 
 interface Props {
@@ -31,15 +31,15 @@ export function Layout({ user, page, onNavigate, onSignOut, children }: Props) {
     const active = page === id;
     return (
       <button onClick={() => { onNavigate(id); setMobileOpen(false); }}
-        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left ${
-          active ? "bg-brand text-white shadow-sm" : "hover:bg-opacity-10"
-        }`}
-        style={active ? {} : { color: "var(--muted)" }}
+        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left"
+        style={active
+          ? { background: "var(--primary)", color: "#fff", boxShadow: "var(--shadow-sm)" }
+          : { color: "var(--muted)" }}
         onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
         onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
         {icon}
         <span>{label}</span>
-        {active && <ChevronRight size={14} className="ml-auto opacity-60" />}
+        {active && <ChevronRight size={14} className="ml-auto opacity-70" />}
       </button>
     );
   };
@@ -50,15 +50,15 @@ export function Layout({ user, page, onNavigate, onSignOut, children }: Props) {
       {/* Logo */}
       <div className="px-4 py-5 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 gradient-primary shadow-md">
             <Zap size={16} className="text-white" fill="currentColor" />
           </div>
           <div>
             <div className="font-display font-semibold text-sm leading-none" style={{ color: "var(--text)" }}>
-              Velox<span className="text-brand">Space</span>
+              Velox<span className="gradient-text">Space</span>
             </div>
             <div className="text-[10px] mt-0.5 uppercase tracking-widest font-medium" style={{ color: "var(--muted)" }}>
-              Analytics
+              Marketing OS
             </div>
           </div>
         </div>
@@ -70,6 +70,7 @@ export function Layout({ user, page, onNavigate, onSignOut, children }: Props) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
         <NavItem id="overview"  label="Overview"  icon={<LayoutDashboard size={16} />} />
+        <NavItem id="composer"  label="Composer"  icon={<PenSquare size={16} />} />
 
         {/* Platforms */}
         <div className="pt-3 pb-1">
@@ -107,7 +108,7 @@ export function Layout({ user, page, onNavigate, onSignOut, children }: Props) {
 
         {/* User */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "var(--surface)" }}>
-          <div className="w-7 h-7 rounded-full bg-brand flex items-center justify-center text-xs font-semibold text-white shrink-0">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0 gradient-primary">
             {initials}
           </div>
           <div className="flex-1 min-w-0">
@@ -115,7 +116,7 @@ export function Layout({ user, page, onNavigate, onSignOut, children }: Props) {
             <p className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{user.email}</p>
           </div>
           <button onClick={onSignOut} title="Sign out"
-            className="shrink-0 p-1 rounded-lg transition-all hover:text-red-500"
+            className="shrink-0 p-1 rounded-lg transition-all"
             style={{ color: "var(--muted)" }}>
             <LogOut size={13} />
           </button>
@@ -150,7 +151,7 @@ export function Layout({ user, page, onNavigate, onSignOut, children }: Props) {
             <Menu size={20} style={{ color: "var(--text)" }} />
           </button>
           <span className="font-display font-semibold text-sm" style={{ color: "var(--text)" }}>
-            Velox<span className="text-brand">Space</span>
+            Velox<span className="gradient-text">Space</span>
           </span>
           <button onClick={toggle}>
             {isDark ? <Sun size={18} style={{ color: "var(--muted)" }} /> : <Moon size={18} style={{ color: "var(--muted)" }} />}
