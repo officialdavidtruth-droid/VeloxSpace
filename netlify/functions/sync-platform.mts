@@ -77,7 +77,7 @@ async function syncInstagram(accountId: string, token: string): Promise<SyncResu
 async function syncFacebook(pageId: string, token: string): Promise<SyncResult> {
   // 1. Page info
   const pageRes = await fetch(
-    `https://graph.facebook.com/v18.0/${pageId}?fields=id,name,fan_count,description&access_token=${token}`
+    `https://graph.facebook.com/v18.0/${pageId}?fields=id,name,followers_count,description&access_token=${token}`
   );
   const page = await pageRes.json();
   if (page.error) throw new Error(`Facebook: ${page.error.message}`);
@@ -100,8 +100,8 @@ async function syncFacebook(pageId: string, token: string): Promise<SyncResult> 
     reach:          0,
     impressions:    0,
     views:          0,
-    engagement_rate: page.fan_count > 0
-      ? ((p.reactions?.summary?.total_count ?? 0) + (p.shares?.count ?? 0)) / page.fan_count * 100
+    engagement_rate: page.followers_count > 0
+      ? ((p.reactions?.summary?.total_count ?? 0) + (p.shares?.count ?? 0)) / page.followers_count * 100
       : 0,
     posted_at: p.created_time,
   }));
@@ -110,7 +110,7 @@ async function syncFacebook(pageId: string, token: string): Promise<SyncResult> 
 
   return {
     metrics: {
-      followers:       page.fan_count ?? 0,
+      followers:       page.followers_count ?? 0,
       following:       0,
       posts:           posts.length,
       likes:           posts.reduce((s: number, p: any) => s + p.likes, 0),
