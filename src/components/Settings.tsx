@@ -18,11 +18,11 @@ interface OAuthGroup {
 const OAUTH_GROUPS: OAuthGroup[] = [
   {
     key: "meta", label: "Meta", emoji: "📘", covers: ["instagram","facebook"], color: "#1877F2",
-    guide: "1. developers.facebook.com → Create App → Business type\n2. Add products: Instagram Graph API + Marketing API\n3. Settings → Basic → copy App ID & App Secret\n4. Add Valid OAuth Redirect URI (see box above)\n5. Request: instagram_basic, pages_read_engagement, ads_read",
+    guide: "1. developers.facebook.com → Create App → Business type\n2. Add products: Instagram Graph API + Marketing API\n3. Settings → Basic → copy App ID & App Secret\n4. Add Valid OAuth Redirect URI (see box above)\n5. Permissions used: pages_show_list, pages_read_engagement, business_management, ads_read",
     setupUrl: "https://developers.facebook.com/apps", envVars: ["VITE_META_APP_ID","META_APP_SECRET"],
     buildUrl: (uid) => {
       const id = import.meta.env.VITE_META_APP_ID; if (!id) return null;
-      return `https://www.facebook.com/v18.0/dialog/oauth?` + new URLSearchParams({ client_id:id, redirect_uri:REDIRECT_URI, scope:"instagram_basic,pages_show_list,pages_read_engagement,read_insights,ads_read", state:`meta__${uid}`, response_type:"code" });
+      return `https://www.facebook.com/v18.0/dialog/oauth?` + new URLSearchParams({ client_id:id, redirect_uri:REDIRECT_URI, scope:"pages_show_list,pages_read_engagement,business_management,ads_read", state:`meta__${uid}`, response_type:"code" });
     },
   },
   {
